@@ -50,7 +50,7 @@ resource "aws_route_table_association" "public" {
 ############################
 
 resource "aws_security_group" "main" {
-  name   = "${var.project_name}-sg"
+  name   = "${var.project_name}-sg-v2"  # Se cambió el nombre para evitar conflictos residuales
   vpc_id = aws_vpc.main.id
 
   ingress {
@@ -114,8 +114,12 @@ data "aws_ecr_repository" "backend_ventas" {
   name = "${var.project_name}-backend-ventas"
 }
 
+data "aws_iam_role" "lab" {
+  name = "LabRole"
+}
+
 ############################
-# INSTANCIA EC2 - MYSQL
+# CONFIGURACIÓN DE AMIs
 ############################
 
 data "aws_ami" "amazon_linux" {
@@ -127,6 +131,10 @@ data "aws_ami" "amazon_linux" {
     values = ["al2023-ami-*-x86_64"]
   }
 }
+
+############################
+# INSTANCIA EC2 - MYSQL
+############################
 
 resource "aws_instance" "db" {
   ami                    = data.aws_ami.amazon_linux.id
@@ -152,8 +160,6 @@ resource "aws_instance" "db" {
       sleep 3
     done
 
-    docker system prune -af
-
     docker run -d \
     --name mysql \
     -e MYSQL_ROOT_PASSWORD=${var.db_password} \
@@ -172,137 +178,122 @@ resource "aws_instance" "db" {
   }
 }
 
-# LOGS EN CLOUDWATCH
-resource "aws_cloudwatch_log_group" "ecs" {
-  name              = "/ecs/${var.project_name}"
-  retention_in_days = 7
+############################
+# INSTANCIA EC2 - BACKEND DESPACHOS
+############################
+
+resource "aws_instance" "backend_despachos" {
+  ami                    = data.aws_ami.amazon_linux.id
+  instance_type          = "t3.micro"
+  subnet_id              = aws_subnet.public.id
+  vpc_security_group_ids = [aws_security_group.main.id]
+  key_name               = var.key_pair_name
+  iam_instance_profile   = "LabInstanceProfile" # Perfil requerido en AWS Academy para descargar de ECR
+
+  user_data = <<-EOF
+    #!/bin/bash
+    yum update -y
+    yum install -y docker
+    systemctl start docker
+    systemctl enable docker
+
+    until docker info > /dev/null 2>&1; do
+      sleep 3
+    done
+
+    # Autenticarse en ECR de forma local usando el rol asignado a la instancia
+    aws ecr get-login-password --region ${var.aws_region} | docker login --username AWS --password-stdin ${data.aws_ecr_repository.backend_despachos.repository_url}
+
+    # Descargar y correr el contenedor de Despachos en el puerto 8080
+    docker run -d \
+      --name backend-despachos \
+      -p 8080:8080 \
+      -e DB_HOST=${aws_instance.db.private_ip} \
+      -e SPRING_DATASOURCE_URL=jdbc:mysql://${aws_instance.db.private_ip}:3306/${var.db_name} \
+      -e SPRING_DATASOURCE_USERNAME=${var.db_user} \
+      -e SPRING_DATASOURCE_PASSWORD=${var.db_password} \
+      ${data.aws_ecr_repository.backend_despachos.repository_url}:latest
+  EOF
+
+  tags = {
+    Name = "${var.project_name}-backend-despachos"
+  }
 }
 
 ############################
-# CLUSTER ECS
+# INSTANCIA EC2 - BACKEND VENTAS
 ############################
 
-resource "aws_ecs_cluster" "main" {
-  name = "${var.project_name}-cluster"
-}
+resource "aws_instance" "backend_ventas" {
+  ami                    = data.aws_ami.amazon_linux.id
+  instance_type          = "t3.micro"
+  subnet_id              = aws_subnet.public.id
+  vpc_security_group_ids = [aws_security_group.main.id]
+  key_name               = var.key_pair_name
+  iam_instance_profile   = "LabInstanceProfile"
 
-data "aws_iam_role" "lab" {
-  name = "LabRole"
-}
+  user_data = <<-EOF
+    #!/bin/bash
+    yum update -y
+    yum install -y docker
+    systemctl start docker
+    systemctl enable docker
 
-############################
-# TASK DEFINITION MULTI-CONTENEDOR
-############################
+    until docker info > /dev/null 2>&1; do
+      sleep 3
+    done
 
-resource "aws_ecs_task_definition" "app" {
-  family                   = "${var.project_name}-app"
-  network_mode             = "awsvpc"
-  requires_compatibilities = ["FARGATE"]
-  cpu                      = "1024"
-  memory                   = "2048"
-  execution_role_arn       = data.aws_iam_role.lab.arn
+    aws ecr get-login-password --region ${var.aws_region} | docker login --username AWS --password-stdin ${data.aws_ecr_repository.backend_ventas.repository_url}
 
-  container_definitions = jsonencode([
-    # 1. Contenedor Backend Despachos
-    {
-      name  = "backend-despachos"
-      image = "${data.aws_ecr_repository.backend_despachos.repository_url}:latest"
-      portMappings = [
-        {
-          containerPort = 8080
-        }
-      ]
-      environment = [
-        { name = "DB_HOST", value = aws_instance.db.private_ip },
-        { name = "SPRING_DATASOURCE_URL", value = "jdbc:mysql://${aws_instance.db.private_ip}:3306/${var.db_name}" },
-        { name = "SPRING_DATASOURCE_USERNAME", value = var.db_user },
-        { name = "SPRING_DATASOURCE_PASSWORD", value = var.db_password }
-      ]
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          awslogs-group         = aws_cloudwatch_log_group.ecs.name
-          awslogs-region        = var.aws_region
-          awslogs-stream-prefix = "backend-despachos"
-        }
-      }
-    },
+    # Descargar y correr el contenedor de Ventas en el puerto 8081
+    docker run -d \
+      --name backend-ventas \
+      -p 8081:8081 \
+      -e DB_HOST=${aws_instance.db.private_ip} \
+      -e SPRING_DATASOURCE_URL=jdbc:mysql://${aws_instance.db.private_ip}:3306/${var.db_name} \
+      -e SPRING_DATASOURCE_USERNAME=${var.db_user} \
+      -e SPRING_DATASOURCE_PASSWORD=${var.db_password} \
+      ${data.aws_ecr_repository.backend_ventas.repository_url}:latest
+  EOF
 
-    # 2. Contenedor Backend Ventas
-    {
-      name  = "backend-ventas"
-      image = "${data.aws_ecr_repository.backend_ventas.repository_url}:latest"
-      portMappings = [
-        {
-          containerPort = 8081
-        }
-      ]
-      environment = [
-        { name = "DB_HOST", value = aws_instance.db.private_ip },
-        { name = "SPRING_DATASOURCE_URL", value = "jdbc:mysql://${aws_instance.db.private_ip}:3306/${var.db_name}" },
-        { name = "SPRING_DATASOURCE_USERNAME", value = var.db_user },
-        { name = "SPRING_DATASOURCE_PASSWORD", value = var.db_password }
-      ]
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          awslogs-group         = aws_cloudwatch_log_group.ecs.name
-          awslogs-region        = var.aws_region
-          awslogs-stream-prefix = "backend-ventas"
-        }
-      }
-    },
-
-    # 3. Contenedor Frontend
-    {
-      name  = "frontend"
-      image = "${data.aws_ecr_repository.frontend.repository_url}:latest"
-      portMappings = [
-        {
-          containerPort = 80
-        }
-      ]
-      dependsOn = [
-        {
-          containerName = "backend-despachos"
-          condition     = "START"
-        },
-        {
-          containerName = "backend-ventas"
-          condition     = "START"
-        }
-      ]
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          awslogs-group         = aws_cloudwatch_log_group.ecs.name
-          awslogs-region        = var.aws_region
-          awslogs-stream-prefix = "frontend"
-        }
-      }
-    }
-  ])
+  tags = {
+    Name = "${var.project_name}-backend-ventas"
+  }
 }
 
 ############################
-# SERVICIO ECS 
+# INSTANCIA EC2 - FRONTEND
 ############################
 
-resource "aws_ecs_service" "app" {
-  name            = "app"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.app.arn
-  launch_type     = "FARGATE"
-  desired_count   = 1
+resource "aws_instance" "frontend" {
+  ami                    = data.aws_ami.amazon_linux.id
+  instance_type          = "t3.micro"
+  subnet_id              = aws_subnet.public.id
+  vpc_security_group_ids = [aws_security_group.main.id]
+  key_name               = var.key_pair_name
+  iam_instance_profile   = "LabInstanceProfile"
 
-  force_new_deployment = true
+  user_data = <<-EOF
+    #!/bin/bash
+    yum update -y
+    yum install -y docker
+    systemctl start docker
+    systemctl enable docker
 
-  deployment_minimum_healthy_percent = 0
-  deployment_maximum_percent         = 100
+    until docker info > /dev/null 2>&1; do
+      sleep 3
+    done
 
-  network_configuration {
-    subnets          = [aws_subnet.public.id]
-    security_groups  = [aws_security_group.main.id]
-    assign_public_ip = true
+    aws ecr get-login-password --region ${var.aws_region} | docker login --username AWS --password-stdin ${data.aws_ecr_repository.frontend.repository_url}
+
+    # Descargar y correr el contenedor del Frontend en el puerto 80
+    docker run -d \
+      --name frontend \
+      -p 80:80 \
+      ${data.aws_ecr_repository.frontend.repository_url}:latest
+  EOF
+
+  tags = {
+    Name = "${var.project_name}-frontend"
   }
 }
