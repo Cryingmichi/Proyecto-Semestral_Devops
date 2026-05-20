@@ -13,6 +13,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+    networks:
+      - app_net
 
   back-despachos:
     build: ./back-Despachos_SpringBoot
@@ -26,6 +29,9 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - app_net
 
   back-ventas:
     build: ./back-Ventas_SpringBoot
@@ -39,6 +45,9 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - app_net
 
   frontend:
     build: ./front_despacho
@@ -48,6 +57,13 @@ services:
     depends_on:
       - back-despachos
       - back-ventas
+    restart: unless-stopped
+    networks:
+      - app_net
 
 volumes:
   mysql_data:
+
+networks:
+  app_net:
+    driver: bridge

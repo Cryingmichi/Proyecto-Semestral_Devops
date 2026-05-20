@@ -1,0 +1,48 @@
+name: CI/CD Backend Ventas
+
+on:
+  push:
+    branches:
+      - deploy
+    paths:
+      - 'back-Ventas_SpringBoot/**'
+
+env:
+  AWS_REGION: us-east-1
+  CLUSTER: innovatech-cluster
+  SERVICE: ventas-service
+  ECR_REPOSITORY: innovatech-backend-ventas
+
+jobs:
+  deploy:
+    name: Deploy Ventas a AWS ECS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Configurar las credenciales de AWS
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login en ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build y Push de imagen backend ventas
+        run: |
+          docker build --platform linux/amd64 \
+          -t ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest \
+          ./back-Ventas_SpringBoot
+          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest
+
+      - name: Forzar redespliegue en ECS
+        run: |
+          aws ecs update-service \
+          --cluster ${{ env.CLUSTER }} \
+          --service ${{ env.SERVICE }} \
+          --force-new-deployment
