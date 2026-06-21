@@ -21,7 +21,7 @@ services:
     build: ./back-Despachos_SpringBoot
     image: innovatech-backend-despachos:1.0
     ports:
-      - "8080:8080"
+      - "8081:8081"
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/innovatech_db
       SPRING_DATASOURCE_USERNAME: root
@@ -37,7 +37,7 @@ services:
     build: ./back-Ventas_SpringBoot
     image: innovatech-backend-ventas:1.0
     ports:
-      - "8081:8081"
+      - "8080:8080"
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/innovatech_db
       SPRING_DATASOURCE_USERNAME: root

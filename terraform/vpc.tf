@@ -21,6 +21,25 @@ resource "aws_subnet" "public" {
   }
 }
 
+# Segunda subred publica en otra AZ: el ALB exige al menos 2
+# subredes en 2 Availability Zones distintas.
+resource "aws_subnet" "public_b" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = var.subnet_public_b_cidr
+  availability_zone       = var.availability_zone_b
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name    = "${var.project_name}-subnet-public-b"
+    Project = var.project_name
+  }
+}
+
+resource "aws_route_table_association" "public_b" {
+  subnet_id      = aws_subnet.public_b.id
+  route_table_id = aws_route_table.public.id
+}
+
 resource "aws_subnet" "private" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = var.subnet_private_cidr

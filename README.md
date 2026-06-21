@@ -23,7 +23,7 @@ cd terraform
 terraform init
 terraform apply
 ```
-Esto crea: VPC, subredes pública/privada, Security Groups, repositorios ECR y 2 instancias EC2 (frontend y backend).
+Esto crea: VPC, subredes pública/privada, Security Groups, repositorios ECR y 3 instancias EC2 (frontend, backend-despachos y backend-ventas).
 
 ### 3. Build y Push de imágenes a ECR
 ```bash
@@ -62,32 +62,41 @@ docker run -d \
   TU_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/innovatech-frontend:latest
 ```
 
-### 5. Conectarse a EC2 Backend y levantar contenedores
-```bash
-# Desde la EC2 Frontend:
-ssh -i ~/.ssh/labsuser.pem ec2-user@IP_PRIVADA_BACKEND
+### 5. Conectarse a las EC2 de Backend y levantar cada contenedor
 
-# Dentro de la EC2 Backend:
-docker network create app_net
+Cada API vive en su propia instancia. El Security Group de cada una solo permite tráfico en el puerto de la app desde el Security Group del Frontend (no desde Internet); el acceso por SSH se usa únicamente para administración.
+
+```bash
+# --- Backend Despachos (puerto 8081) ---
+ssh -i labsuser.pem ec2-user@IP_PUBLICA_BACKEND_DESPACHOS
+
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin TU_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com
 
 docker run -d \
   --name backend-despachos \
-  --network app_net \
-  -p 8080:8080 \
+  -p 8081:8081 \
   -e SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/innovatech_db \
   -e SPRING_DATASOURCE_USERNAME=root \
   -e SPRING_DATASOURCE_PASSWORD=root \
   TU_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/innovatech-backend-despachos:latest
+```
+
+```bash
+# --- Backend Ventas (puerto 8080) ---
+ssh -i labsuser.pem ec2-user@IP_PUBLICA_BACKEND_VENTAS
+
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin TU_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com
 
 docker run -d \
   --name backend-ventas \
-  --network app_net \
-  -p 8081:8081 \
+  -p 8080:8080 \
   -e SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/innovatech_db \
   -e SPRING_DATASOURCE_USERNAME=root \
   -e SPRING_DATASOURCE_PASSWORD=root \
   TU_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/innovatech-backend-ventas:latest
 ```
+
+> El Frontend debe apuntar a las IPs (o nombres DNS internos) de estas dos instancias para consumir cada API.
 
 ### 6. Verificar
 ```bash
@@ -100,10 +109,10 @@ Abrir navegador en `http://IP_PUBLICA_FRONTEND`
 ## 🏗️ Infraestructura AWS
 
 - **VPC:** 10.0.0.0/16
-- **Subred pública:** 10.0.1.0/24 → EC2 Frontend (IP pública)
-- **Subred pública:** 10.0.1.0/24 → EC2 Backend
-- **Security Group Frontend:** puertos 80, 443, 22
-- **Security Group Backend:** puertos 8080, 8081 solo desde Frontend SG
+- **Subred pública:** 10.0.1.0/24 → EC2 Frontend (IP pública), EC2 Backend Despachos, EC2 Backend Ventas
+- **Security Group Frontend:** puertos 80, 443, 22 abiertos a Internet (único punto de entrada público)
+- **Security Group Backend Despachos:** puerto 8081 solo desde el SG del Frontend
+- **Security Group Backend Ventas:** puerto 8080 solo desde el SG del Frontend
 - **ECR:** 3 repositorios (frontend, backend-despachos, backend-ventas)
 
 ---
