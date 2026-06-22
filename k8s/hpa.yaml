@@ -1,0 +1,72 @@
+# Horizontal Pod Autoscaler (IE3): escala segun el uso promedio de CPU.
+#
+# Umbral elegido: 50%.
+# Justificacion: un umbral de 50% deja margen para absorber picos de
+# trafico sin saturar el pod mientras se aprovisiona uno nuevo (el
+# scale-out tarda algunos segundos en EKS), evitando degradar tiempos
+# de respuesta. Un umbral mas bajo (ej. 20%) generaria escalados
+# innecesarios ante cargas normales; uno mas alto (ej. 80%) arriesgaria
+# saturar el servicio antes de que termine de escalar.
+#
+# Requiere el addon metrics-server instalado en el cluster (ver
+# terraform/eks-cluster.tf).
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: backend-despachos-hpa
+  namespace: innovatech
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend-despachos
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: backend-ventas-hpa
+  namespace: innovatech
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend-ventas
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: frontend-hpa
+  namespace: innovatech
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: frontend
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50
