@@ -1,25 +1,16 @@
-output "alb_dns_name" {
-  description = "DNS publico del Application Load Balancer (unico punto de entrada de la aplicacion)"
-  value       = aws_lb.main.dns_name
+output "eks_cluster_name" {
+  description = "Nombre del cluster EKS"
+  value       = aws_eks_cluster.main.name
 }
 
-output "app_url" {
-  description = "URL publica del frontend"
-  value       = "http://${aws_lb.main.dns_name}"
+output "eks_cluster_endpoint" {
+  description = "Endpoint del control plane de EKS"
+  value       = aws_eks_cluster.main.endpoint
 }
 
-output "api_despachos_url" {
-  description = "URL publica de la API de Despachos (via ALB)"
-  value       = "http://${aws_lb.main.dns_name}/api/despachos"
-}
-
-output "api_ventas_url" {
-  description = "URL publica de la API de Ventas (via ALB)"
-  value       = "http://${aws_lb.main.dns_name}/api/ventas"
-}
-
-output "ecs_cluster_name" {
-  value = aws_ecs_cluster.main.name
+output "configure_kubectl" {
+  description = "Comando para conectar kubectl al cluster"
+  value       = "aws eks update-kubeconfig --region ${var.aws_region} --name ${aws_eks_cluster.main.name}"
 }
 
 output "ecr_frontend_url" {

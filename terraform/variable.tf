@@ -26,7 +26,7 @@ variable "subnet_private_cidr" {
 }
 
 variable "subnet_public_b_cidr" {
-  description = "CIDR de la segunda subred publica (requerida por el ALB en otra AZ)"
+  description = "CIDR de la segunda subred publica (requerida por el Load Balancer en otra AZ)"
   type        = string
   default     = "10.0.3.0/24"
 }
@@ -37,7 +37,13 @@ variable "availability_zone" {
 }
 
 variable "availability_zone_b" {
-  description = "Segunda Availability Zone, requerida por el ALB"
+  description = "Segunda Availability Zone, requerida por el Load Balancer"
   type        = string
   default     = "us-east-1b"
+}
+
+variable "cluster_name" {
+  description = "Nombre del cluster EKS"
+  type        = string
+  default     = "innovatech-eks"
 }

@@ -16,13 +16,15 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = true
 
   tags = {
-    Name    = "${var.project_name}-subnet-public"
-    Project = var.project_name
+    Name                                       = "${var.project_name}-subnet-public"
+    Project                                    = var.project_name
+    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
+    "kubernetes.io/role/elb"                   = "1"
   }
 }
 
-# Segunda subred publica en otra AZ: el ALB exige al menos 2
-# subredes en 2 Availability Zones distintas.
+# Segunda subred publica en otra AZ: el Load Balancer de Kubernetes
+# (Service tipo LoadBalancer) exige al menos 2 subredes en 2 AZs distintas.
 resource "aws_subnet" "public_b" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.subnet_public_b_cidr
@@ -30,8 +32,10 @@ resource "aws_subnet" "public_b" {
   map_public_ip_on_launch = true
 
   tags = {
-    Name    = "${var.project_name}-subnet-public-b"
-    Project = var.project_name
+    Name                                       = "${var.project_name}-subnet-public-b"
+    Project                                    = var.project_name
+    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
+    "kubernetes.io/role/elb"                   = "1"
   }
 }
 
