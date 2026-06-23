@@ -25,27 +25,25 @@ variable "subnet_private_cidr" {
   default = "10.0.2.0/24"
 }
 
+variable "subnet_public_b_cidr" {
+  description = "CIDR de la segunda subred publica (requerida por el Load Balancer en otra AZ)"
+  type        = string
+  default     = "10.0.3.0/24"
+}
+
 variable "availability_zone" {
   type    = string
   default = "us-east-1a"
 }
 
-variable "instance_type" {
-  type    = string
-  default = "t2.micro"
+variable "availability_zone_b" {
+  description = "Segunda Availability Zone, requerida por el Load Balancer"
+  type        = string
+  default     = "us-east-1b"
 }
 
-variable "ami_id" {
-  type    = string
-  default = "ami-0c02fb55956c7d316"
-}
-
-variable "key_name" {
-  type    = string
-  default = "vockey"
-}
-
-variable "my_ip" {
-  type    = string
-  default = "0.0.0.0/0"
+variable "cluster_name" {
+  description = "Nombre del cluster EKS"
+  type        = string
+  default     = "innovatech-eks"
 }

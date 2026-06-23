@@ -3,19 +3,21 @@ name: CI/CD Backend Despachos
 on:
   push:
     branches:
-      - deploy
+      - main
     paths:
       - 'back-Despachos_SpringBoot/**'
 
 env:
   AWS_REGION: us-east-1
-  CLUSTER: innovatech-cluster
-  SERVICE: despachos-service
+  CLUSTER_NAME: innovatech-eks
+  NAMESPACE: innovatech
+  DEPLOYMENT: backend-despachos
+  CONTAINER_NAME: backend-despachos
   ECR_REPOSITORY: innovatech-backend-despachos
 
 jobs:
   deploy:
-    name: Deploy Despachos a AWS ECS
+    name: Build, Push y Deploy Despachos a AWS EKS
     runs-on: ubuntu-latest
     steps:
       - name: Checkout del código
@@ -33,16 +35,34 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build y Push de imagen backend despachos
+      - name: Build y Push de imagen versionada
+        id: build-image
         run: |
-          docker build --platform linux/amd64 \
-          -t ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest \
-          ./back-Despachos_SpringBoot
-          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest
+          IMAGE_TAG="${GITHUB_RUN_NUMBER}"
+          REGISTRY="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
 
-      - name: Forzar redespliegue en ECS
+          docker build --platform linux/amd64 \
+            -t ${REGISTRY}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG} \
+            -t ${REGISTRY}/${{ env.ECR_REPOSITORY }}:latest \
+            ./back-Despachos_SpringBoot
+
+          docker push ${REGISTRY}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}
+          docker push ${REGISTRY}/${{ env.ECR_REPOSITORY }}:latest
+
+          echo "image=${REGISTRY}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Configurar kubectl (CLI)
+        uses: azure/setup-kubectl@v4
+
+      - name: Configurar kubectl contra el cluster EKS
         run: |
-          aws ecs update-service \
-          --cluster ${{ env.CLUSTER }} \
-          --service ${{ env.SERVICE }} \
-          --force-new-deployment
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.CLUSTER_NAME }}
+
+      - name: Actualizar la imagen del Deployment y esperar el rollout
+        run: |
+          kubectl set image deployment/${{ env.DEPLOYMENT }} \
+            ${{ env.CONTAINER_NAME }}=${{ steps.build-image.outputs.image }} \
+            -n ${{ env.NAMESPACE }}
+
+          kubectl rollout status deployment/${{ env.DEPLOYMENT }} \
+            -n ${{ env.NAMESPACE }} --timeout=180s

@@ -4,14 +4,17 @@
 .idea/
 *.log
 
-# Ignora dependencias locales
-target/
+# Ignora dependencias locales y artefactos de build previos
+Springboot-API-REST/target/
+**/target/
 .mvn/
 .settings/
 
 # Ignora control de versiones y sistema de build
 .git/
 .gitignore
+.gitattributes
+.DS_Store
 docker-compose.override.yml
 Dockerfile*
 
