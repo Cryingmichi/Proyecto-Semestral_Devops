@@ -121,7 +121,7 @@ El `frontend-service` mostrará un `EXTERNAL-IP` (DNS del LoadBalancer) una vez 
 
 ## 🔄 Pipeline CI/CD (GitHub Actions)
 
-Cada componente tiene su propio workflow en `.github/workflows/`, disparado al hacer push a la rama `deploy` con cambios en su carpeta correspondiente:
+Cada componente tiene su propio workflow en `.github/workflows/`, disparado al hacer push a la rama `main` con cambios en su carpeta correspondiente:
 
 | Workflow | Carpeta vigilada | Deployment de Kubernetes |
 |---|---|---|
@@ -148,9 +148,9 @@ Flujo de cada pipeline (build → push → deploy):
 
 ### Disparar un despliegue
 ```bash
-git checkout deploy
-git merge main
-git push origin deploy
+git add .
+git commit -m "feat: actualizacion de servicio"
+git push origin main
 ```
 
 ### Revisar el resultado del despliegue

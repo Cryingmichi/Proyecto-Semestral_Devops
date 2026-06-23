@@ -2,15 +2,23 @@
 # patron de la solucion de ejemplo del curso.
 #
 # En AWS Academy Learner Lab no se pueden crear roles IAM nuevos, por
-# lo que se reutilizan los roles ya provistos por el laboratorio:
-# LabEKSClusterRole (rol del cluster) y LabEKSNodeRole (rol de los nodos).
+# lo que se reutilizan los roles ya provistos por el laboratorio.
+# IMPORTANTE: estos roles NO se llaman literalmente "LabEKSClusterRole"
+# ni "LabEKSNodeRole": cada instancia de laboratorio les agrega un
+# prefijo/sufijo unico (ej. "c206632a...-LabEksClusterRole-FgIzNkgVmCOD").
+# Por eso se buscan por patron (regex) en lugar de por nombre exacto.
 
-data "aws_iam_role" "eks_cluster_role" {
-  name = "LabEKSClusterRole"
+data "aws_iam_roles" "eks_cluster_role_search" {
+  name_regex = ".*LabEksClusterRole.*"
 }
 
-data "aws_iam_role" "eks_node_role" {
-  name = "LabEKSNodeRole"
+data "aws_iam_roles" "eks_node_role_search" {
+  name_regex = ".*LabEksNodeRole.*"
+}
+
+locals {
+  eks_cluster_role_arn = tolist(data.aws_iam_roles.eks_cluster_role_search.arns)[0]
+  eks_node_role_arn     = tolist(data.aws_iam_roles.eks_node_role_search.arns)[0]
 }
 
 resource "aws_security_group" "eks_cluster" {
@@ -33,8 +41,8 @@ resource "aws_security_group" "eks_cluster" {
 
 resource "aws_eks_cluster" "main" {
   name     = var.cluster_name
-  role_arn = data.aws_iam_role.eks_cluster_role.arn
-  version  = "1.29"
+  role_arn = local.eks_cluster_role_arn
+  version  = "1.30"
 
   vpc_config {
     subnet_ids              = [aws_subnet.public.id, aws_subnet.public_b.id]
@@ -53,7 +61,7 @@ resource "aws_eks_cluster" "main" {
 resource "aws_eks_node_group" "main" {
   cluster_name    = aws_eks_cluster.main.name
   node_group_name = "${var.project_name}-nodes"
-  node_role_arn   = data.aws_iam_role.eks_node_role.arn
+  node_role_arn   = local.eks_node_role_arn
   subnet_ids      = [aws_subnet.public.id, aws_subnet.public_b.id]
 
   capacity_type  = "SPOT"

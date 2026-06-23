@@ -3,7 +3,7 @@ name: CI/CD Backend Despachos
 on:
   push:
     branches:
-      - deploy
+      - main
     paths:
       - 'back-Despachos_SpringBoot/**'
 

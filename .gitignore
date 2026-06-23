@@ -1,2 +1,9 @@
 .terraform/
 *.exe
+
+# Terraform state (contiene informacion sensible y cambia con cada apply,
+# no debe versionarse en el repositorio)
+*.tfstate
+*.tfstate.*
+*.tfplan
+.terraform.lock.hcl
